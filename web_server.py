@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.secret_key = str(uuid.uuid4())
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
-DB_NAME = 'unlock_system.db'
+DB_NAME = 'bd.db'
 SESSIONS_DIR = 'active_sessions'
 PHOTOS_DIR = 'user_photos'
 
