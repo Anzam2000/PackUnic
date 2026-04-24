@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>Админ-панель | Liquid Glass</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            -webkit-user-select: none;
+            user-select: none;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, 'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(circle at 70% 20%, #e2eafc 0%, #cdddf5 100%);
+            background-image:
+                radial-gradient(circle at 20% 40%, rgba(255, 255, 255, 0.7) 0%, transparent 30%),
+                radial-gradient(circle at 90% 80%, rgba(200, 225, 255, 0.6) 0%, transparent 45%),
+                linear-gradient(155deg, #d4e0f0 0%, #f0f5fc 100%);
+            padding: 30px 20px;
+            animation: bgShift 20s infinite alternate;
+        }
+
+        @keyframes bgShift {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 100% 50%; }
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Общие стили стекла */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-radius: 48px;
+            padding: 30px 32px;
+            margin-bottom: 30px;
+            box-shadow:
+                0 30px 50px -15px rgba(0, 20, 40, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .glass-panel:hover {
+            box-shadow:
+                0 35px 60px -18px rgba(0, 30, 60, 0.2),
+                0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+        }
+
+        h2, h3, h4 {
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            color: #1e293b;
+        }
+
+        h2 { font-size: 36px; margin-bottom: 20px; background: linear-gradient(145deg, #1e2b4a, #2c3e6b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        h3 { font-size: 26px; margin: 0 0 20px 0; }
+        h4 { font-size: 20px; margin: 0 0 16px 0; }
+
+        .nav-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .user-badge {
+            background: rgba(0, 100, 200, 0.12);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Общий стиль для всех ссылок-кнопок */
+        .glass-link {
+            text-decoration: none;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(8px);
+            border-radius: 40px;
+            color: #1e3a5f;
+            font-weight: 500;
+            transition: all 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-size: 0.95rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Эффект блика для всех ссылок */
+        .glass-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .glass-link:hover::before {
+            left: 100%;
+        }
+
+        .glass-link:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px -8px rgba(0,0,0,0.1);
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Формы */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+            align-items: end;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-field label {
+            font-weight: 500;
+            color: #2c3e5e;
+            padding-left: 8px;
+            font-size: 0.9rem;
+        }
+
+        .glass-input {
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(10px);
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
+            border-radius: 36px;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.25s;
+            color: #0f172a;
+            font-weight: 500;
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.75);
+            border-color: rgba(255, 255, 255, 1);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2) inset;
+            transform: scale(1.01);
+        }
+
+        .glass-input:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+        }
+
+        /* Общий стиль для всех кнопок */
+        .glass-button {
+            padding: 14px 28px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50px;
+            font-weight: 600;
+            color: #0066cc;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 20px -8px rgba(0, 100, 200, 0.15);
+            font-size: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Эффект блика для всех кнопок */
+        .glass-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .glass-button:hover::before {
+            left: 100%;
+        }
+
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.7);
+            transform: translateY(-2px);
+            box-shadow: 0 16px 24px -10px rgba(0, 100, 200, 0.25);
+            border-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .glass-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 8px 16px -6px rgba(0, 100, 200, 0.2);
+        }
+
+        /* Маленькие кнопки */
+        .glass-button.small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-button.small:hover {
+            background: rgba(255, 255, 255, 0.65);
+        }
+
+        /* Кнопка удаления */
+        .glass-button.danger {
+            color: #c00030;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-button.danger:hover {
+            background: rgba(255, 200, 200, 0.5);
+            box-shadow: 0 12px 20px -8px rgba(200, 0, 0, 0.2);
+        }
+
+        /* Таблица */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 30px;
+            margin-top: 20px;
+        }
+
+        .glass-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(15px);
+            border-radius: 30px;
+            overflow: hidden;
+        }
+
+        .glass-table th {
+            background: rgba(255, 255, 255, 0.4);
+            padding: 16px 18px;
+            font-weight: 600;
+            color: #1e293b;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .glass-table td {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .glass-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .glass-table tr:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .result-message {
+            margin-top: 20px;
+            padding: 12px 20px;
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+        }
+
+        .edit-panel {
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+            border-radius: 40px;
+            padding: 24px;
+            margin-top: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        hr {
+            margin: 30px 0;
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+        }
+
+        /* Анимация для результатов */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 700px) {
+            .glass-panel { padding: 20px 18px; }
+            h2 { font-size: 30px; }
+        }
+    </style>
+</head>
+<body>
+<div class="main-container">
+    <div class="glass-panel">
+        <div class="nav-header">
+            <h2>⚙️ Админ-панель</h2>
+            <span class="user-badge">👑 {{ session.name }} {{ session.surname }} (admin)</span>
+        </div>
+        <div class="nav-links">
+            <a href="/scan" class="glass-link">📱 На главную</a>
+            <a href="/admin/logs" class="glass-link">📋 Логи разблокировок</a>
+            <a href="/admin/sessions" class="glass-link">📊 Сессии работы</a>
+            <a href="/logout" class="glass-link">🚪 Выйти</a>
+        </div>
+    </div>
+
+    <!-- Смена пароля -->
+    <div class="glass-panel">
+        <h3>🔐 Сменить пароль администратора</h3>
+        <form id="changePasswordForm">
+            <div class="form-grid">
+                <div class="input-field">
+                    <label>Новый пароль</label>
+                    <input type="password" id="newPassword" class="glass-input" required>
+                </div>
+                <div class="input-field">
+                    <label>Подтвердите</label>
+                    <input type="password" id="confirmPassword" class="glass-input" required>
+                </div>
+                <div>
+                    <button type="submit" class="glass-button">Сменить пароль</button>
+                </div>
+            </div>
+            <div id="passwordResult" class="result-message"></div>
+        </form>
+    </div>
+
+    <!-- Добавление пользователя -->
+    <div class="glass-panel">
+        <h3>➕ Добавить пользователя</h3>
+        <form id="addUserForm">
+            <div class="form-grid">
+                <div class="input-field"><label>Логин</label><input type="text" id="newUsername" class="glass-input" required></div>
+                <div class="input-field"><label>Пароль</label><input type="password" id="newUserPassword" class="glass-input" required></div>
+                <div class="input-field"><label>Имя</label><input type="text" id="newName" class="glass-input" required></div>
+                <div class="input-field"><label>Фамилия</label><input type="text" id="newSurname" class="glass-input" required></div>
+                <div class="checkbox-label"><input type="checkbox" id="newIsAdmin"> <label style="margin:0;">Админ</label></div>
+                <div><button type="submit" class="glass-button">Добавить</button></div>
+            </div>
+            <div id="addUserResult" class="result-message"></div>
+        </form>
+    </div>
+
+    <!-- Список пользователей -->
+    <div class="glass-panel">
+        <h3>👥 Список пользователей</h3>
+        <div class="table-wrapper">
+            <table class="glass-table">
+                <thead>
+                    <tr><th>ID</th><th>Логин</th><th>Имя</th><th>Фамилия</th><th>Админ</th><th>Действия</th></tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.surname }}</td>
+                        <td>{{ 'Да' if user.is_admin else 'Нет' }}</td>
+                        <td class="action-buttons">
+                            <button class="glass-button small" onclick="editUser({{ user.id }}, '{{ user.username }}', '{{ user.name }}', '{{ user.surname }}', {{ user.is_admin }})">✏️</button>
+                            <button class="glass-button small danger" onclick="deleteUser({{ user.id }})">🗑️</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Форма редактирования -->
+        <div id="editForm" class="edit-panel" style="display:none;">
+            <h4>✏️ Редактировать пользователя</h4>
+            <form id="editUserForm">
+                <input type="hidden" id="editId">
+                <div class="form-grid">
+                    <div class="input-field"><label>Логин</label><input type="text" id="editUsername" class="glass-input" required></div>
+                    <div class="input-field"><label>Новый пароль (необяз.)</label><input type="password" id="editPassword" class="glass-input"></div>
+                    <div class="input-field"><label>Имя</label><input type="text" id="editName" class="glass-input" required></div>
+                    <div class="input-field"><label>Фамилия</label><input type="text" id="editSurname" class="glass-input" required></div>
+                    <div class="checkbox-label"><input type="checkbox" id="editIsAdmin"> <label>Админ</label></div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="glass-button">Сохранить</button>
+                        <button type="button" class="glass-button" onclick="document.getElementById('editForm').style.display='none'">Отмена</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showResult(elementId, message, isSuccess) {
+        const el = document.getElementById(elementId);
+        el.innerHTML = `<div style="color:${isSuccess ? '#0a6e3a' : '#b01030'}; padding:8px 0;">${message}</div>`;
+        if (isSuccess) {
+            el.style.animation = 'none';
+            setTimeout(() => el.style.animation = 'slideIn 0.3s', 10);
+        }
+    }
+
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newPass = document.getElementById('newPassword').value;
+        const confirmPass = document.getElementById('confirmPassword').value;
+        if (newPass !== confirmPass) {
+            showResult('passwordResult', '❌ Пароли не совпадают', false);
+            return;
+        }
+        const response = await fetch('/api/admin/change_password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({new_password: newPass})
+        });
+        const data = await response.json();
+        showResult('passwordResult', data.message, data.success);
+        if (data.success) document.getElementById('changePasswordForm').reset();
+    });
+
+    document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userData = {
+            username: document.getElementById('newUsername').value,
+            password: document.getElementById('newUserPassword').value,
+            name: document.getElementById('newName').value,
+            surname: document.getElementById('newSurname').value,
+            is_admin: document.getElementById('newIsAdmin').checked ? 1 : 0
+        };
+        const response = await fetch('/api/admin/users', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(userData)
+        });
+        const data = await response.json();
+        showResult('addUserResult', data.message, data.success);
+        if (data.success) setTimeout(() => location.reload(), 800);
+    });
+
+    function editUser(id, username, name, surname, isAdmin) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editName').value = name;
+        document.getElementById('editSurname').value = surname;
+        document.getElementById('editIsAdmin').checked = isAdmin;
+        document.getElementById('editForm').style.display = 'block';
+        document.getElementById('editForm').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    }
+
+    document.getElementById('editUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userData = {
+            id: document.getElementById('editId').value,
+            username: document.getElementById('editUsername').value,
+            name: document.getElementById('editName').value,
+            surname: document.getElementById('editSurname').value,
+            is_admin: document.getElementById('editIsAdmin').checked ? 1 : 0
+        };
+        const password = document.getElementById('editPassword').value;
+        if (password) userData.password = password;
+
+        const response = await fetch('/api/admin/users', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(userData)
+        });
+        const data = await response.json();
+        if (data.success) location.reload(); else alert(data.message);
+    });
+
+    async function deleteUser(id) {
+        if (!confirm('Удалить пользователя?')) return;
+        const response = await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) location.reload(); else alert(data.message);
+    }
+</script>
+</body>
+</html>

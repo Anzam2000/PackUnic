@@ -17,14 +17,12 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import logging
 
-# ==================== КОНФИГУРАЦИЯ ====================
 SERVER_URL = "http://localhost:5000"
 VERSION = "25.4"
 CODE_LIFETIME = 120
 CHECK_INTERVAL = 1
 AUTHORIZED_FLAG_FILE = "authorized.flag"
 
-# ==================== ПУТИ ====================
 TEMP_DIR = os.path.join(tempfile.gettempdir(), "SessionLogger")
 SESSION_FILE = os.path.join(TEMP_DIR, "current_session.json")
 PHOTOS_DIR = os.path.join(TEMP_DIR, "photos")
@@ -34,11 +32,10 @@ PID_FILE = os.path.join(TEMP_DIR, "service.pid")
 SESSIONS_DIR = os.path.join(TEMP_DIR, "sessions")
 AUTHORIZED_FILE = os.path.join(TEMP_DIR, AUTHORIZED_FLAG_FILE)
 
-# Создаем все папки
 for dir_path in [TEMP_DIR, PHOTOS_DIR, QR_CODES_DIR, SESSIONS_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-# ==================== НАСТРОЙКА ЛОГГИРОВАНИЯ ====================
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -50,9 +47,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С СИСТЕМОЙ ====================
+
 def get_computer_serial():
-    """Получить серийный номер компьютера"""
 
     try:
         result = subprocess.run(
@@ -99,12 +95,10 @@ def get_computer_serial():
 
 
 def is_authorized():
-    """Проверить, авторизован ли компьютер"""
     return os.path.exists(AUTHORIZED_FILE)
 
 
 def mark_authorized():
-    """Отметить компьютер как авторизованный"""
     try:
         with open(AUTHORIZED_FILE, 'w') as f:
             f.write(f"Authorized at: {datetime.datetime.now().isoformat()}\n")
@@ -117,13 +111,11 @@ def mark_authorized():
 
 
 def reset_authorization():
-    """Сбросить авторизацию"""
     try:
         if os.path.exists(AUTHORIZED_FILE):
             os.remove(AUTHORIZED_FILE)
             logger.info(f"🔄 Авторизация сброшена для {COMPUTER_SERIAL}")
 
-            # Уведомляем сервер о завершении сессии
             try:
                 requests.post(f"{SERVER_URL}/api/session/end",
                               json={"computer_serial": COMPUTER_SERIAL}, timeout=5)
