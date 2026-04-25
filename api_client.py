@@ -284,7 +284,10 @@ class WarehouseAPI:
                 "supplier": supplier
             }
             response = requests.post(f"{self.base_url}/api/receipts", json=data, timeout=10)
-            return response.json() if response.status_code == 200 else None
+            if response.ok:
+                return response.json()
+            error_text = response.text[:500]
+            raise RuntimeError(f"HTTP {response.status_code}: {error_text}")
         except requests.exceptions.RequestException:
             return None
     
@@ -318,7 +321,10 @@ class WarehouseAPI:
                 "manager": manager
             }
             response = requests.post(f"{self.base_url}/api/writeoffs", json=data, timeout=10)
-            return response.json() if response.status_code == 200 else None
+            if response.ok:
+                return response.json()
+            error_text = response.text[:500]
+            raise RuntimeError(f"HTTP {response.status_code}: {error_text}")
         except requests.exceptions.RequestException:
             return None
     
@@ -407,3 +413,21 @@ class WarehouseAPI:
             return response.json() if response.status_code == 200 else {}
         except requests.exceptions.RequestException:
             return {}
+
+    # ==================== USERS / SESSIONS ====================
+
+    def get_users(self):
+        """Получить список пользователей"""
+        try:
+            response = requests.get(f"{self.base_url}/api/users", timeout=10)
+            return response.json() if response.status_code == 200 else []
+        except requests.exceptions.RequestException:
+            return []
+
+    def get_work_sessions(self):
+        """Получить список рабочих сессий"""
+        try:
+            response = requests.get(f"{self.base_url}/api/work-sessions", timeout=10)
+            return response.json() if response.status_code == 200 else []
+        except requests.exceptions.RequestException:
+            return []
