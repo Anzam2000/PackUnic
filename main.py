@@ -412,18 +412,24 @@ class MainWindow(QMainWindow):
         self.stock_page = self.create_stock_page()
         self.receipts_page = self.create_receipts_page()
         self.writeoffs_page = self.create_writeoffs_page()
+        self.users_page = self.create_users_page()
+        self.sessions_page = self.create_sessions_page()
 
         # Добавляем в стек
         self.content_area.addWidget(self.main_page)
         self.content_area.addWidget(self.stock_page)
         self.content_area.addWidget(self.receipts_page)
         self.content_area.addWidget(self.writeoffs_page)
+        self.content_area.addWidget(self.users_page)
+        self.content_area.addWidget(self.sessions_page)
 
         self.individual_pages = {
             "Главная-Главная": self.main_page,
             "Склад-Остатки": self.stock_page,
             "Склад-Поступления": self.receipts_page,
             "Склад-Списания": self.writeoffs_page,
+            "Админ-Пользователи": self.users_page,
+            "Админ-Сессии": self.sessions_page,
         }
 
     def load_table_to_qtablewidget(self, table_type, qtable_widget):
@@ -436,7 +442,9 @@ class MainWindow(QMainWindow):
             api_methods = {
                 "stock_page": self.api.get_stock,
                 "receipts_page": self.api.get_receipts,
-                "writeoffs_page": self.api.get_writeoffs
+                "writeoffs_page": self.api.get_writeoffs,
+                "users_page": self.api.get_users,
+                "sessions_page": self.api.get_work_sessions,
             }
 
             if table_type not in api_methods:
@@ -466,7 +474,18 @@ class MainWindow(QMainWindow):
                         'date': 'Дата',
                         'reason': 'Причина',
                         'manager': 'Менеджер',
-                        'client': 'Клиент'
+                        'client': 'Клиент',
+                        'username': 'Логин',
+                        'name': 'Имя',
+                        'surname': 'Фамилия',
+                        'is_admin': 'Админ',
+                        'created_at': 'Создан',
+                        'user_id': 'ID пользователя',
+                        'computer_serial': 'Серийник ПК',
+                        'session_start': 'Начало сессии',
+                        'session_end': 'Конец сессии',
+                        'duration_minutes': 'Длительность (мин)',
+                        'photo_path': 'Фото'
                     }
                     header_labels.append(translations.get(header, header))
 
@@ -533,11 +552,8 @@ class MainWindow(QMainWindow):
         # Карточка 2 - Общая стоимость
         self.total_value_card = self.create_stat_card("💰", "Общая стоимость", "0")
 
-        # Карточка 3 - Заказы
-        self.orders_card = self.create_stat_card("📋", "Всего заказов", "0")
 
-        # Карточка 4 - Продажи за месяц
-        self.sales_card = self.create_stat_card("📈", "Продажи за месяц", "0")
+
 
         # ТЕПЕРЬ ДОБАВЛЯЕМ ИХ В СЕТКУ
         cards_widget = QWidget()
@@ -546,8 +562,6 @@ class MainWindow(QMainWindow):
 
         cards_layout.addWidget(self.total_products_card, 0, 0)
         cards_layout.addWidget(self.total_value_card, 0, 1)
-        cards_layout.addWidget(self.orders_card, 1, 0)
-        cards_layout.addWidget(self.sales_card, 1, 1)
 
         layout.addWidget(cards_widget)
 
@@ -776,6 +790,8 @@ class MainWindow(QMainWindow):
                 if result:
                     QMessageBox.information(self, "✅ Успех", "Поступление успешно добавлено!")
                     self.load_table_to_qtablewidget("receipts_page", self.receipts_table)
+                    self.load_table_to_qtablewidget("stock_page", self.stock_table)
+                    self.update_dashboard_stats()
                 else:
                     QMessageBox.warning(self, "❌ Ошибка", "Сервер не принял данные")
 
@@ -856,6 +872,30 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Нет подключения", "Отсутствует подключение к серверу")
             return
 
+        stock_items = self.api.get_stock() or []
+        if not stock_items:
+            QMessageBox.warning(self, "⚠️ Нет остатков", "Сначала добавьте поступление, чтобы создать остатки для списания.")
+            return
+
+        product_options = []
+        for item in stock_items:
+            name = item.get("Товар") or item.get("product_name") or ""
+            sku = item.get("Артикул") or item.get("sku") or ""
+            qty = float(item.get("Количество") or item.get("quantity") or 0)
+            unit = item.get("Ед_изм") or item.get("unit") or "шт"
+            if sku:
+                product_options.append({
+                    "name": name,
+                    "sku": sku,
+                    "qty": qty,
+                    "unit": unit,
+                    "display": f"{name} ({sku}) - доступно: {qty:g} {unit}",
+                })
+
+        if not product_options:
+            QMessageBox.warning(self, "⚠️ Нет остатков", "Нет валидных позиций на складе для списания.")
+            return
+
         dialog = QDialog(self)
         dialog.setWindowTitle("📤 Новое списание")
         dialog.setMinimumWidth(500)
@@ -879,12 +919,13 @@ class MainWindow(QMainWindow):
         l.setSpacing(15)
         l.setContentsMargins(20, 20, 20, 20)
 
-        name_in = QLineEdit()
-        name_in.setPlaceholderText("Введите название товара")
+        product_in = QComboBox()
+        product_in.addItems([opt["display"] for opt in product_options])
         sku_in = QLineEdit()
-        sku_in.setPlaceholderText("Введите артикул")
+        sku_in.setReadOnly(True)
+        sku_in.setPlaceholderText("Артикул будет подставлен автоматически")
         qty_in = QDoubleSpinBox()
-        qty_in.setRange(0.001, 1000000)
+        qty_in.setRange(0.001, max(product_options[0]["qty"], 0.001))
         qty_in.setDecimals(3)
         qty_in.setSuffix(" шт")
         reason_in = QComboBox()
@@ -892,8 +933,23 @@ class MainWindow(QMainWindow):
         manager_in = QLineEdit()
         manager_in.setPlaceholderText("Введите имя менеджера")
 
-        l.addRow("🏷️ Название товара:", name_in)
+        available_label = QLabel()
+
+        def sync_selected_product():
+            selected = product_options[product_in.currentIndex()]
+            sku_in.setText(selected["sku"])
+            qty_in.setSuffix(f" {selected['unit']}")
+            qty_in.setMaximum(max(selected["qty"], 0.001))
+            if qty_in.value() > selected["qty"]:
+                qty_in.setValue(selected["qty"])
+            available_label.setText(f"Доступно на складе: {selected['qty']:g} {selected['unit']}")
+
+        product_in.currentIndexChanged.connect(sync_selected_product)
+        sync_selected_product()
+
+        l.addRow("🏷️ Товар со склада:", product_in)
         l.addRow("🔖 Артикул (SKU):", sku_in)
+        l.addRow("📦 Остаток:", available_label)
         l.addRow("📊 Количество:", qty_in)
         l.addRow("📋 Причина:", reason_in)
         l.addRow("👤 Менеджер:", manager_in)
@@ -908,8 +964,9 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(bb)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            if not name_in.text() or not sku_in.text():
-                QMessageBox.warning(self, "⚠️ Ошибка", "Название и артикул обязательны!")
+            selected = product_options[product_in.currentIndex()]
+            if not selected["name"] or not selected["sku"]:
+                QMessageBox.warning(self, "⚠️ Ошибка", "Не удалось определить товар для списания.")
                 return
 
             try:
@@ -919,8 +976,8 @@ class MainWindow(QMainWindow):
                     reason_text = reason_text.replace(emoji, "")
 
                 result = self.api.add_writeoff(
-                    product_name=name_in.text(),
-                    sku=sku_in.text(),
+                    product_name=selected["name"],
+                    sku=selected["sku"],
                     quantity=qty_in.value(),
                     reason=reason_text,
                     manager=manager_in.text() or "Не указан"
@@ -929,6 +986,8 @@ class MainWindow(QMainWindow):
                 if result:
                     QMessageBox.information(self, "✅ Успех", "Списание добавлено!")
                     self.load_table_to_qtablewidget("writeoffs_page", self.writeoffs_table)
+                    self.load_table_to_qtablewidget("stock_page", self.stock_table)
+                    self.update_dashboard_stats()
                 else:
                     QMessageBox.warning(self, "❌ Ошибка", "Сервер не принял данные")
 
@@ -1015,6 +1074,7 @@ class MainWindow(QMainWindow):
         # Меню
         self.create_main_dropdown(layout)
         self.create_stock_dropdown(layout)
+        self.create_admin_dropdown(layout)
 
         layout.addStretch()
 
@@ -1075,6 +1135,22 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn)
         layout.addWidget(lw)
 
+    def create_admin_dropdown(self, layout):
+        btn = QPushButton("👥 Админ")
+        btn.setObjectName("menu-button")
+        btn.setCheckable(True)
+
+        lw = QListWidget()
+        lw.setObjectName("dropdown-menu")
+        lw.setVisible(False)
+        lw.addItems(["👤 Пользователи", "🔌 Сессии"])
+
+        btn.toggled.connect(lambda ch: self.toggle_dropdown(lw, btn, ch))
+        lw.itemClicked.connect(lambda i: self.on_list_item_clicked(i, "Админ"))
+
+        layout.addWidget(btn)
+        layout.addWidget(lw)
+
     def toggle_dropdown(self, lw, btn, show):
         lw.setVisible(show)
         text = btn.text()
@@ -1091,7 +1167,7 @@ class MainWindow(QMainWindow):
     def on_list_item_clicked(self, item, category):
         item_text = item.text()
         # Убираем эмодзи из текста
-        for emoji in ["📊 ", "📋 ", "📥 ", "📤 "]:
+        for emoji in ["📊 ", "📋 ", "📥 ", "📤 ", "👤 ", "🔌 "]:
             item_text = item_text.replace(emoji, "")
 
         key = f"{category}-{item_text}"
@@ -1101,7 +1177,9 @@ class MainWindow(QMainWindow):
             page_map = {
                 "Склад-Остатки": ("stock_page", self.stock_table),
                 "Склад-Поступления": ("receipts_page", self.receipts_table),
-                "Склад-Списания": ("writeoffs_page", self.writeoffs_table)
+                "Склад-Списания": ("writeoffs_page", self.writeoffs_table),
+                "Админ-Пользователи": ("users_page", self.users_table),
+                "Админ-Сессии": ("sessions_page", self.sessions_table),
             }
             if key in page_map:
                 table_type, table_widget = page_map[key]
@@ -1132,6 +1210,54 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(100, lambda: self.load_table_to_qtablewidget("stock_page", self.stock_table))
 
+        return p
+
+    def create_users_page(self):
+        p = QWidget()
+        l = QVBoxLayout(p)
+        l.setSpacing(15)
+        l.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("👤 Пользователи")
+        title.setObjectName("subtitle")
+        l.addWidget(title)
+
+        self.users_table = QTableWidget()
+        l.addWidget(self.users_table)
+
+        btn_widget = QWidget()
+        btn_layout = QHBoxLayout(btn_widget)
+        refresh_btn = QPushButton("🔄 Обновить")
+        refresh_btn.clicked.connect(lambda: self.load_table_to_qtablewidget("users_page", self.users_table))
+        btn_layout.addWidget(refresh_btn)
+        btn_layout.addStretch()
+        l.addWidget(btn_widget)
+
+        QTimer.singleShot(100, lambda: self.load_table_to_qtablewidget("users_page", self.users_table))
+        return p
+
+    def create_sessions_page(self):
+        p = QWidget()
+        l = QVBoxLayout(p)
+        l.setSpacing(15)
+        l.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("🔌 Сессии подключений")
+        title.setObjectName("subtitle")
+        l.addWidget(title)
+
+        self.sessions_table = QTableWidget()
+        l.addWidget(self.sessions_table)
+
+        btn_widget = QWidget()
+        btn_layout = QHBoxLayout(btn_widget)
+        refresh_btn = QPushButton("🔄 Обновить")
+        refresh_btn.clicked.connect(lambda: self.load_table_to_qtablewidget("sessions_page", self.sessions_table))
+        btn_layout.addWidget(refresh_btn)
+        btn_layout.addStretch()
+        l.addWidget(btn_widget)
+
+        QTimer.singleShot(100, lambda: self.load_table_to_qtablewidget("sessions_page", self.sessions_table))
         return p
 
 

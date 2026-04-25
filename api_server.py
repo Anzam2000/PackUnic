@@ -205,6 +205,34 @@ class ReturnSupplierResponse(BaseModel):
         from_attributes = True
 
 
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    name: str
+    surname: str
+    is_admin: int
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WorkSessionResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    name: Optional[str] = None
+    surname: Optional[str] = None
+    computer_serial: str
+    session_start: str
+    session_end: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    photo_path: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== Database Connection ====================
 
 @contextmanager
@@ -223,6 +251,144 @@ def dict_from_row(row):
     return dict(zip(row.keys(), row))
 
 
+def init_db():
+    """Создает таблицы склада, если они отсутствуют."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS stock_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Товар TEXT NOT NULL,
+                Артикул TEXT NOT NULL,
+                Количество REAL NOT NULL,
+                Ед_изм TEXT NOT NULL,
+                Цена REAL NOT NULL,
+                Сумма REAL NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS receipts_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Дата TEXT NOT NULL,
+                Товар TEXT NOT NULL,
+                Артикул TEXT NOT NULL,
+                Количество REAL NOT NULL,
+                Ед_изм TEXT NOT NULL,
+                Цена REAL NOT NULL,
+                Сумма REAL NOT NULL,
+                Поставщик TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS all_orders_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Клиент TEXT NOT NULL,
+                Дата TEXT NOT NULL,
+                Сумма REAL NOT NULL,
+                Статус TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS in_work_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Клиент TEXT NOT NULL,
+                Дата TEXT NOT NULL,
+                Сумма REAL NOT NULL,
+                Ответственный TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ready_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Клиент TEXT NOT NULL,
+                Дата TEXT NOT NULL,
+                Сумма REAL NOT NULL,
+                Статус TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sales_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Номер TEXT NOT NULL,
+                Дата TEXT NOT NULL,
+                Покупатель TEXT NOT NULL,
+                Кол_во_позиций INTEGER NOT NULL,
+                Сумма REAL NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS writeoffs_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Дата TEXT NOT NULL,
+                Товар TEXT NOT NULL,
+                Артикул TEXT NOT NULL,
+                Количество REAL NOT NULL,
+                Причина TEXT NOT NULL,
+                Ответственный TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS returns_clients_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Дата TEXT NOT NULL,
+                Товар TEXT NOT NULL,
+                Артикул TEXT NOT NULL,
+                Количество REAL NOT NULL,
+                Причина TEXT NOT NULL,
+                Клиент TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS returns_suppliers_page (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Дата TEXT NOT NULL,
+                Товар TEXT NOT NULL,
+                Артикул TEXT NOT NULL,
+                Количество REAL NOT NULL,
+                Причина TEXT NOT NULL,
+                Поставщик TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT,
+                name TEXT NOT NULL,
+                surname TEXT NOT NULL,
+                is_admin INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS work_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                name TEXT,
+                surname TEXT,
+                computer_serial TEXT NOT NULL,
+                session_start TIMESTAMP NOT NULL,
+                session_end TIMESTAMP,
+                duration_minutes INTEGER,
+                photo_path TEXT
+            )
+        """)
+
+        conn.commit()
+
+
 # ==================== FastAPI App ====================
 
 app = FastAPI(
@@ -230,6 +396,8 @@ app = FastAPI(
     description="API для управления складом, заказами, продажами и прайсами",
     version="1.0.0"
 )
+
+init_db()
 
 # Настройка CORS для доступа с любых ПК
 app.add_middleware(
@@ -365,8 +533,27 @@ async def create_receipt(receipt: ReceiptItemCreate):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (receipt.date, receipt.product_name, receipt.sku, receipt.quantity, 
               receipt.unit, receipt.price, receipt.total, receipt.supplier))
+        receipt_id = cursor.lastrowid
+
+        # Синхронизация поступления со складскими остатками.
+        cursor.execute("SELECT id, Количество FROM stock_page WHERE Артикул = ?", (receipt.sku,))
+        stock_row = cursor.fetchone()
+        if stock_row:
+            new_quantity = float(stock_row["Количество"]) + float(receipt.quantity)
+            new_total = new_quantity * float(receipt.price)
+            cursor.execute("""
+                UPDATE stock_page
+                SET Товар = ?, Ед_изм = ?, Цена = ?, Количество = ?, Сумма = ?
+                WHERE id = ?
+            """, (receipt.product_name, receipt.unit, receipt.price, new_quantity, new_total, stock_row["id"]))
+        else:
+            cursor.execute("""
+                INSERT INTO stock_page (Товар, Артикул, Количество, Ед_изм, Цена, Сумма)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (receipt.product_name, receipt.sku, receipt.quantity, receipt.unit, receipt.price, receipt.total))
+
         conn.commit()
-        cursor.execute("SELECT * FROM receipts_page WHERE id = ?", (cursor.lastrowid,))
+        cursor.execute("SELECT * FROM receipts_page WHERE id = ?", (receipt_id,))
         row = cursor.fetchone()
         return dict_from_row(row)
 
@@ -652,13 +839,41 @@ async def create_writeoff(writeoff: WriteoffCreate):
     """Добавить новое списание."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT id, Количество, Цена FROM stock_page WHERE Артикул = ?", (writeoff.sku,))
+        stock_row = cursor.fetchone()
+        if not stock_row:
+            raise HTTPException(status_code=400, detail="Товар с указанным артикулом отсутствует на складе")
+
+        current_qty = float(stock_row["Количество"])
+        writeoff_qty = float(writeoff.quantity)
+        if writeoff_qty <= 0:
+            raise HTTPException(status_code=400, detail="Количество списания должно быть больше нуля")
+        if current_qty < writeoff_qty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно товара на складе. Доступно: {current_qty}, запрошено: {writeoff_qty}",
+            )
+
         cursor.execute("""
             INSERT INTO writeoffs_page (Дата, Товар, Артикул, Количество, Причина, Ответственный)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (writeoff.date, writeoff.product_name, writeoff.sku, writeoff.quantity, 
               writeoff.reason, writeoff.manager))
+        writeoff_id = cursor.lastrowid
+
+        new_qty = current_qty - writeoff_qty
+        price = float(stock_row["Цена"] or 0)
+        if new_qty <= 0:
+            cursor.execute("DELETE FROM stock_page WHERE id = ?", (stock_row["id"],))
+        else:
+            cursor.execute("""
+                UPDATE stock_page
+                SET Количество = ?, Сумма = ?
+                WHERE id = ?
+            """, (new_qty, new_qty * price, stock_row["id"]))
+
         conn.commit()
-        cursor.execute("SELECT * FROM writeoffs_page WHERE id = ?", (cursor.lastrowid,))
+        cursor.execute("SELECT * FROM writeoffs_page WHERE id = ?", (writeoff_id,))
         row = cursor.fetchone()
         return dict_from_row(row)
 
@@ -804,13 +1019,50 @@ async def get_dashboard_stats():
         # Сумма готовых
         cursor.execute("SELECT SUM(Сумма) FROM ready_page WHERE Статус = 'Выполнен' OR Статус = 'Готов'")
         ready_sum = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COALESCE(SUM(Количество), 0) FROM stock_page")
+        total_products = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COALESCE(SUM(Сумма), 0) FROM receipts_page")
+        total_value = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(*) FROM all_orders_page")
+        total_orders = cursor.fetchone()[0]
         
         return {
+            "total_products": total_products,
+            "total_value": total_value,
+            "total_orders": total_orders,
+            "monthly_sales": ready_sum,
             "today_orders": today_orders,
             "in_work": in_work_count,
             "ready_count": ready_count,
             "ready_sum": ready_sum
         }
+
+
+@app.get("/api/users", response_model=List[UserResponse], tags=["Пользователи"])
+async def get_users():
+    """Получить список пользователей."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, name, surname, is_admin, created_at FROM users ORDER BY id DESC")
+        rows = cursor.fetchall()
+        return [dict_from_row(row) for row in rows]
+
+
+@app.get("/api/work-sessions", response_model=List[WorkSessionResponse], tags=["Сессии"])
+async def get_work_sessions():
+    """Получить список рабочих сессий."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, user_id, username, name, surname, computer_serial, session_start, session_end, duration_minutes, photo_path
+            FROM work_sessions
+            ORDER BY id DESC
+        """)
+        rows = cursor.fetchall()
+        return [dict_from_row(row) for row in rows]
 
 
 if __name__ == "__main__":
