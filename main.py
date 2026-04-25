@@ -552,8 +552,11 @@ class MainWindow(QMainWindow):
         # Карточка 2 - Общая стоимость
         self.total_value_card = self.create_stat_card("💰", "Общая стоимость", "0")
 
+        # Карточка 3 - Заказы
+        self.orders_card = self.create_stat_card("📋", "Всего заказов", "0")
 
-
+        # Карточка 4 - Продажи за месяц
+        self.sales_card = self.create_stat_card("📈", "Продажи за месяц", "0")
 
         # ТЕПЕРЬ ДОБАВЛЯЕМ ИХ В СЕТКУ
         cards_widget = QWidget()
@@ -562,6 +565,8 @@ class MainWindow(QMainWindow):
 
         cards_layout.addWidget(self.total_products_card, 0, 0)
         cards_layout.addWidget(self.total_value_card, 0, 1)
+        cards_layout.addWidget(self.orders_card, 1, 0)
+        cards_layout.addWidget(self.sales_card, 1, 1)
 
         layout.addWidget(cards_widget)
 
