@@ -17,12 +17,14 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import logging
 
+# ==================== КОНФИГУРАЦИЯ ====================
 SERVER_URL = "http://localhost:5000"
 VERSION = "25.4"
 CODE_LIFETIME = 120
 CHECK_INTERVAL = 1
 AUTHORIZED_FLAG_FILE = "authorized.flag"
 
+# ==================== ПУТИ ====================
 TEMP_DIR = os.path.join(tempfile.gettempdir(), "SessionLogger")
 SESSION_FILE = os.path.join(TEMP_DIR, "current_session.json")
 PHOTOS_DIR = os.path.join(TEMP_DIR, "photos")
@@ -32,10 +34,11 @@ PID_FILE = os.path.join(TEMP_DIR, "service.pid")
 SESSIONS_DIR = os.path.join(TEMP_DIR, "sessions")
 AUTHORIZED_FILE = os.path.join(TEMP_DIR, AUTHORIZED_FLAG_FILE)
 
+# Создаем все папки
 for dir_path in [TEMP_DIR, PHOTOS_DIR, QR_CODES_DIR, SESSIONS_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-
+# ==================== НАСТРОЙКА ЛОГГИРОВАНИЯ ====================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -47,47 +50,74 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С СИСТЕМОЙ ====================
+def to_safe_filename(value: str, fallback: str = "unknown") -> str:
+    """Преобразовать строку в безопасное имя файла."""
+    safe = "".join(ch if ch.isalnum() or ch in ("-", "_", ".") else "_" for ch in str(value))
+    safe = safe.strip("._")
+    return safe or fallback
+
 
 def get_computer_serial():
+    """Получить серийный номер компьютера"""
+
+    invalid_serials = {
+        "to be filled by o.e.m.",
+        "to be filled by o.e.m",
+        "default string",
+        "none",
+        "system serial number",
+        "",
+    }
+
+    def _is_valid(serial_value: str) -> bool:
+        return bool(serial_value) and serial_value.strip().lower() not in invalid_serials
 
     try:
+        # WMIC удален из современных версий Windows, поэтому используем CIM.
         result = subprocess.run(
-            ['wmic', 'bios', 'get', 'serialnumber'],
+            [
+                'powershell',
+                '-NoProfile',
+                '-Command',
+                '(Get-CimInstance -ClassName Win32_BIOS).SerialNumber'
+            ],
             capture_output=True,
-            timeout=5
+            timeout=7
         )
-
-        output = result.stdout.decode('utf-8', errors='ignore')
-        lines = output.strip().split('\n')
-
-        if len(lines) >= 2:
-            serial = lines[1].strip()
-            if serial and serial not in [
-                "To be filled by O.E.M.",
-                "To be filled by O.E.M",
-                "Default string",
-                "None",
-                "System Serial Number",
-                ""
-            ]:
-                logger.info(f"✅ Получен серийный номер через wmic: {serial}")
-                return serial
+        serial = result.stdout.decode('utf-8', errors='ignore').strip()
+        if _is_valid(serial):
+            logger.info(f"✅ Получен серийный номер через PowerShell CIM: {serial}")
+            return serial
     except Exception as e:
-        logger.error(f"❌ Ошибка wmic: {e}")
+        logger.error(f"❌ Ошибка получения serial через CIM: {e}")
 
     try:
         result = subprocess.run(
-            ['powershell', '-Command', 'Get-WmiObject win32_bios | Select-Object -ExpandProperty SerialNumber'],
+            [
+                'powershell',
+                '-NoProfile',
+                '-Command',
+                'Get-WmiObject Win32_BIOS | Select-Object -ExpandProperty SerialNumber'
+            ],
             capture_output=True,
-            timeout=5
+            timeout=7
         )
 
         serial = result.stdout.decode('utf-8', errors='ignore').strip()
-        if serial and serial not in ["To be filled by O.E.M.", "Default string", ""]:
+        if _is_valid(serial):
             logger.info(f"✅ Получен серийный номер через PowerShell: {serial}")
             return serial
     except Exception as e:
         logger.error(f"❌ Ошибка PowerShell: {e}")
+
+    try:
+        machine_uuid = str(uuid.getnode())
+        if _is_valid(machine_uuid):
+            logger.warning(f"⚠️ Использую machine id (uuid.getnode): {machine_uuid}")
+            return machine_uuid
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения machine id: {e}")
 
     computer_name = socket.gethostname()
     logger.warning(f"⚠️ Использую имя компьютера: {computer_name}")
@@ -95,10 +125,12 @@ def get_computer_serial():
 
 
 def is_authorized():
+    """Проверить, авторизован ли компьютер"""
     return os.path.exists(AUTHORIZED_FILE)
 
 
 def mark_authorized():
+    """Отметить компьютер как авторизованный"""
     try:
         with open(AUTHORIZED_FILE, 'w') as f:
             f.write(f"Authorized at: {datetime.datetime.now().isoformat()}\n")
@@ -111,11 +143,13 @@ def mark_authorized():
 
 
 def reset_authorization():
+    """Сбросить авторизацию"""
     try:
         if os.path.exists(AUTHORIZED_FILE):
             os.remove(AUTHORIZED_FILE)
             logger.info(f"🔄 Авторизация сброшена для {COMPUTER_SERIAL}")
 
+            # Уведомляем сервер о завершении сессии
             try:
                 requests.post(f"{SERVER_URL}/api/session/end",
                               json={"computer_serial": COMPUTER_SERIAL}, timeout=5)
@@ -147,7 +181,8 @@ def take_photo():
 
                     # Сохраняем локально
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    local_path = os.path.join(PHOTOS_DIR, f"photo_{COMPUTER_SERIAL}_{timestamp}.jpg")
+                    safe_serial = to_safe_filename(COMPUTER_SERIAL)
+                    local_path = os.path.join(PHOTOS_DIR, f"photo_{safe_serial}_{timestamp}.jpg")
                     with open(local_path, 'wb') as f:
                         f.write(base64.b64decode(photo_base64))
 
@@ -308,7 +343,8 @@ class SessionManager:
             qr.make(fit=True)
 
             img = qr.make_image(fill_color="black", back_color="white")
-            filename = f"QR_{computer_serial}_{code}.png"
+            safe_serial = to_safe_filename(computer_serial)
+            filename = f"QR_{safe_serial}_{code}.png"
             filepath = os.path.join(QR_CODES_DIR, filename)
             img.save(filepath)
 

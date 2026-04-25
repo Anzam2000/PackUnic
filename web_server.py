@@ -24,6 +24,12 @@ Path(SESSIONS_DIR).mkdir(exist_ok=True)
 Path(PHOTOS_DIR).mkdir(exist_ok=True)
 
 
+def get_session_file_path(computer_serial: str) -> str:
+    """Построить безопасный путь к json-сессии по serial."""
+    safe_serial = str(computer_serial).replace("/", "_").replace("\\", "_")
+    return os.path.join(SESSIONS_DIR, f"{safe_serial}.json")
+
+
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -160,7 +166,7 @@ def verify_unlock():
     computer_serial = data.get('computer_serial')
     code = data.get('code')
 
-    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
+    session_file = get_session_file_path(computer_serial)
     if not os.path.exists(session_file):
         return jsonify({'success': False, 'message': 'Сессия не найдена'})
 
@@ -207,7 +213,7 @@ def verify_unlock():
 
 @app.route('/api/check_session/<computer_serial>')
 def check_session(computer_serial):
-    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
+    session_file = get_session_file_path(computer_serial)
     if not os.path.exists(session_file):
         return jsonify({'exists': False, 'verified': False})
 
@@ -241,7 +247,14 @@ def create_session():
         'verified': False
     }
 
-    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
+    session_file = get_session_file_path(computer_serial)
+
+    # Добавьте эти строки перед open():
+    directory = os.path.dirname(session_file)
+    if not os.path.exists(directory):
+        os.makedirs(directory)  # Это создаст всю цепочку папок (и active_sessions, и 40003)
+
+    # Теперь ошибка не появится
     with open(session_file, 'w') as f:
         json.dump(session_data, f)
 
@@ -263,7 +276,7 @@ def start_work_session():
     computer_serial = data.get('computer_serial')
 
     # Получаем информацию о сессии
-    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
+    session_file = get_session_file_path(computer_serial)
     if os.path.exists(session_file):
         with open(session_file, 'r') as f:
             session_data = json.load(f)
@@ -328,7 +341,8 @@ def upload_photo():
 
         # Создаем имя файла
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{computer_serial}_{timestamp}.jpg"
+        safe_serial = str(computer_serial).replace("/", "_").replace("\\", "_")
+        filename = f"{safe_serial}_{timestamp}.jpg"
         filepath = os.path.join(PHOTOS_DIR, filename)
 
         # Сохраняем фото
