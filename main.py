@@ -552,11 +552,11 @@ class MainWindow(QMainWindow):
         # Карточка 2 - Общая стоимость
         self.total_value_card = self.create_stat_card("💰", "Общая стоимость", "0")
 
-        # Карточка 3 - Заказы
-        self.orders_card = self.create_stat_card("📋", "Всего заказов", "0")
+        # Карточка 3 - Количество сессий
+        self.orders_card = self.create_stat_card("🧩", "Количество сессий", "0")
 
-        # Карточка 4 - Продажи за месяц
-        self.sales_card = self.create_stat_card("📈", "Продажи за месяц", "0")
+        # Карточка 4 - Среднее время сессии
+        self.sales_card = self.create_stat_card("⏱️", "Среднее время сессии", "0 мин")
 
         # ТЕПЕРЬ ДОБАВЛЯЕМ ИХ В СЕТКУ
         cards_widget = QWidget()
@@ -631,11 +631,13 @@ class MainWindow(QMainWindow):
                 # Обновляем значения в карточках
                 for card, key in [(self.total_products_card, 'total_products'),
                                   (self.total_value_card, 'total_value'),
-                                  (self.orders_card, 'total_orders'),
-                                  (self.sales_card, 'monthly_sales')]:
+                                  (self.orders_card, 'session_count'),
+                                  (self.sales_card, 'avg_session_minutes')]:
                     value = stats.get(key, 0)
-                    if key in ['total_value', 'monthly_sales']:
+                    if key == 'total_value':
                         card.value_label.setText(f"{float(value):.2f} ₽")
+                    elif key == 'avg_session_minutes':
+                        card.value_label.setText(f"{float(value):.1f} мин")
                     else:
                         card.value_label.setText(str(value))
             else:
@@ -649,7 +651,7 @@ class MainWindow(QMainWindow):
                 self.total_products_card.value_label.setText(str(total_quantity))
                 self.total_value_card.value_label.setText(f"{total_sum:.2f} ₽")
                 self.orders_card.value_label.setText("0")
-                self.sales_card.value_label.setText("0.00 ₽")
+                self.sales_card.value_label.setText("0.0 мин")
 
             QMessageBox.information(self, "✅ Обновлено", "Данные успешно получены с сервера")
 

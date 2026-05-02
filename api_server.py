@@ -1026,14 +1026,17 @@ async def get_dashboard_stats():
         cursor.execute("SELECT COALESCE(SUM(Сумма), 0) FROM receipts_page")
         total_value = cursor.fetchone()[0] or 0
 
-        cursor.execute("SELECT COUNT(*) FROM all_orders_page")
-        total_orders = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM work_sessions")
+        session_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COALESCE(AVG(duration_minutes), 0) FROM work_sessions WHERE duration_minutes IS NOT NULL")
+        avg_session_minutes = cursor.fetchone()[0] or 0
         
         return {
             "total_products": total_products,
             "total_value": total_value,
-            "total_orders": total_orders,
-            "monthly_sales": ready_sum,
+            "session_count": session_count,
+            "avg_session_minutes": avg_session_minutes,
             "today_orders": today_orders,
             "in_work": in_work_count,
             "ready_count": ready_count,
