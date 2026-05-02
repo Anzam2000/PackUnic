@@ -12,7 +12,7 @@ except ImportError:
     WarehouseAPI = None
 
 # ==================== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ ====================
-SERVER_IP = "192.168.56.1"
+SERVER_IP = "192.168.3.189"
 SERVER_PORT = 8055
 UI_CONFIG = {
     'window_width': 1600,      # Базовая ширина для 16:10

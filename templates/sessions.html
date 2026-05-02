@@ -30,7 +30,6 @@
             100% { background-position: 100% 100%; }
         }
 
-        /* Основной контейнер */
         .glass-container {
             max-width: 1400px;
             margin: 0 auto;
@@ -54,7 +53,6 @@
             transform: translateY(-4px);
         }
 
-        /* Заголовок */
         h2 {
             font-weight: 650;
             font-size: 34px;
@@ -68,7 +66,6 @@
             display: inline-block;
         }
 
-        /* Навигация */
         .nav-links {
             display: flex;
             gap: 20px;
@@ -96,7 +93,6 @@
             box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.15);
         }
 
-        /* Статистика */
         .stats-info {
             margin-left: 15px;
             font-size: 0.9rem;
@@ -109,7 +105,6 @@
             display: inline-block;
         }
 
-        /* Таблица */
         .table-wrapper {
             overflow-x: auto;
             border-radius: 36px;
@@ -160,7 +155,6 @@
             border-bottom: none;
         }
 
-        /* Статус активной сессии */
         .session-active {
             color: #0a7143;
             font-weight: 600;
@@ -176,7 +170,6 @@
             color: #6b7280;
         }
 
-        /* Ссылка на фото */
         .photo-link {
             color: #0066cc;
             text-decoration: none;
@@ -198,7 +191,6 @@
             border-color: rgba(0, 120, 255, 0.4);
         }
 
-        /* Анимация появления */
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -214,7 +206,6 @@
             animation: slideIn 0.4s ease-out;
         }
 
-        /* Адаптивность */
         @media (max-width: 768px) {
             .glass-container {
                 padding: 24px 18px 30px;
@@ -262,7 +253,6 @@
             }
         }
 
-        /* Скроллбар в стиле стекла */
         .table-wrapper::-webkit-scrollbar {
             height: 8px;
         }
@@ -282,7 +272,6 @@
             background: rgba(255, 255, 255, 0.7);
         }
 
-        /* Пустое состояние */
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -365,7 +354,6 @@
     </div>
 
     <script>
-        // Добавляем плавную анимацию при загрузке строк
         (function() {
             const rows = document.querySelectorAll('.glass-table tbody tr');
             rows.forEach((row, index) => {
@@ -373,7 +361,6 @@
                 row.style.animation = `slideIn 0.3s ease-out ${index * 0.05}s forwards`;
             });
 
-            // Подсветка активных сессий
             const activeSessions = document.querySelectorAll('.session-active');
             activeSessions.forEach(el => {
                 setInterval(() => {

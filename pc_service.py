@@ -12,19 +12,18 @@ import requests
 import subprocess
 import uuid
 import base64
+import signal
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, Optional
 import logging
 
-# ==================== КОНФИГУРАЦИЯ ====================
 SERVER_URL = "http://localhost:5000"
-VERSION = "25.4"
+VERSION = "PackUnic"
 CODE_LIFETIME = 120
 CHECK_INTERVAL = 1
 AUTHORIZED_FLAG_FILE = "authorized.flag"
 
-# ==================== ПУТИ ====================
 TEMP_DIR = os.path.join(tempfile.gettempdir(), "SessionLogger")
 SESSION_FILE = os.path.join(TEMP_DIR, "current_session.json")
 PHOTOS_DIR = os.path.join(TEMP_DIR, "photos")
@@ -34,11 +33,9 @@ PID_FILE = os.path.join(TEMP_DIR, "service.pid")
 SESSIONS_DIR = os.path.join(TEMP_DIR, "sessions")
 AUTHORIZED_FILE = os.path.join(TEMP_DIR, AUTHORIZED_FLAG_FILE)
 
-# Создаем все папки
 for dir_path in [TEMP_DIR, PHOTOS_DIR, QR_CODES_DIR, SESSIONS_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-# ==================== НАСТРОЙКА ЛОГГИРОВАНИЯ ====================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -50,17 +47,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С СИСТЕМОЙ ====================
 def to_safe_filename(value: str, fallback: str = "unknown") -> str:
-    """Преобразовать строку в безопасное имя файла."""
     safe = "".join(ch if ch.isalnum() or ch in ("-", "_", ".") else "_" for ch in str(value))
     safe = safe.strip("._")
     return safe or fallback
 
 
 def get_computer_serial():
-    """Получить серийный номер компьютера"""
-
     invalid_serials = {
         "to be filled by o.e.m.",
         "to be filled by o.e.m",
@@ -74,7 +67,6 @@ def get_computer_serial():
         return bool(serial_value) and serial_value.strip().lower() not in invalid_serials
 
     try:
-        # WMIC удален из современных версий Windows, поэтому используем CIM.
         result = subprocess.run(
             [
                 'powershell',
@@ -87,10 +79,10 @@ def get_computer_serial():
         )
         serial = result.stdout.decode('utf-8', errors='ignore').strip()
         if _is_valid(serial):
-            logger.info(f"✅ Получен серийный номер через PowerShell CIM: {serial}")
+            logger.info(f"Получен серийный номер через PowerShell CIM: {serial}")
             return serial
     except Exception as e:
-        logger.error(f"❌ Ошибка получения serial через CIM: {e}")
+        logger.error(f"Ошибка получения serial через CIM: {e}")
 
     try:
         result = subprocess.run(
@@ -103,39 +95,36 @@ def get_computer_serial():
             capture_output=True,
             timeout=7
         )
-
         serial = result.stdout.decode('utf-8', errors='ignore').strip()
         if _is_valid(serial):
-            logger.info(f"✅ Получен серийный номер через PowerShell: {serial}")
+            logger.info(f"Получен серийный номер через PowerShell: {serial}")
             return serial
     except Exception as e:
-        logger.error(f"❌ Ошибка PowerShell: {e}")
+        logger.error(f"Ошибка PowerShell: {e}")
 
     try:
         machine_uuid = str(uuid.getnode())
         if _is_valid(machine_uuid):
-            logger.warning(f"⚠️ Использую machine id (uuid.getnode): {machine_uuid}")
+            logger.warning(f"Использую machine id (uuid.getnode): {machine_uuid}")
             return machine_uuid
     except Exception as e:
-        logger.error(f"❌ Ошибка получения machine id: {e}")
+        logger.error(f"Ошибка получения machine id: {e}")
 
     computer_name = socket.gethostname()
-    logger.warning(f"⚠️ Использую имя компьютера: {computer_name}")
+    logger.warning(f"Использую имя компьютера: {computer_name}")
     return computer_name
 
 
 def is_authorized():
-    """Проверить, авторизован ли компьютер"""
     return os.path.exists(AUTHORIZED_FILE)
 
 
 def mark_authorized():
-    """Отметить компьютер как авторизованный"""
     try:
         with open(AUTHORIZED_FILE, 'w') as f:
             f.write(f"Authorized at: {datetime.datetime.now().isoformat()}\n")
             f.write(f"Computer: {COMPUTER_SERIAL}\n")
-        logger.info(f"✅ Компьютер {COMPUTER_SERIAL} отмечен как авторизованный")
+        logger.info(f"Компьютер {COMPUTER_SERIAL} отмечен как авторизованный")
         return True
     except Exception as e:
         logger.error(f"Ошибка отметки авторизации: {e}")
@@ -143,13 +132,11 @@ def mark_authorized():
 
 
 def reset_authorization():
-    """Сбросить авторизацию"""
     try:
         if os.path.exists(AUTHORIZED_FILE):
             os.remove(AUTHORIZED_FILE)
             logger.info(f"🔄 Авторизация сброшена для {COMPUTER_SERIAL}")
 
-            # Уведомляем сервер о завершении сессии
             try:
                 requests.post(f"{SERVER_URL}/api/session/end",
                               json={"computer_serial": COMPUTER_SERIAL}, timeout=5)
@@ -164,22 +151,19 @@ def reset_authorization():
 
 
 def take_photo():
-    """Сделать фото с веб-камеры"""
     try:
         import cv2
 
         for camera_id in [0, 1]:
             cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
             if cap.isOpened():
-                time.sleep(0.5)  # Прогрев камеры
+                time.sleep(0.5)
                 ret, frame = cap.read()
                 if ret and frame is not None:
-                    # Конвертируем в base64
                     _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                     photo_base64 = base64.b64encode(buffer).decode('utf-8')
                     cap.release()
 
-                    # Сохраняем локально
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     safe_serial = to_safe_filename(COMPUTER_SERIAL)
                     local_path = os.path.join(PHOTOS_DIR, f"photo_{safe_serial}_{timestamp}.jpg")
@@ -190,14 +174,13 @@ def take_photo():
                     return photo_base64
                 cap.release()
 
-        logger.warning("⚠️ Не удалось сделать фото")
+        logger.warning("Не удалось сделать фото")
         return None
     except Exception as e:
-        logger.error(f"❌ Ошибка камеры: {e}")
+        logger.error(f"Ошибка камеры: {e}")
         return None
 
 
-# ==================== ДАТАКЛАССЫ ====================
 @dataclass
 class Session:
     session_id: str
@@ -214,16 +197,13 @@ class Session:
         return time.time() > self.expires_at
 
 
-# ==================== WEB API КЛИЕНТ ====================
 class WebAPIClient:
-    """Клиент для работы с веб-сервером"""
 
     def __init__(self, server_url=SERVER_URL):
         self.server_url = server_url
         logger.info(f"🌐 WebAPI клиент: {server_url}")
 
     def create_session(self, computer_serial):
-        """Создать сессию на сервере"""
         try:
             response = requests.post(
                 f"{self.server_url}/api/create_session",
@@ -232,14 +212,13 @@ class WebAPIClient:
             )
             if response.status_code == 200:
                 data = response.json()
-                logger.info(f"✅ Сессия создана: {data}")
+                logger.info(f"Сессия создана: {data}")
                 return data
         except Exception as e:
-            logger.error(f"❌ Ошибка создания сессии: {e}")
+            logger.error(f"Ошибка создания сессии: {e}")
         return None
 
     def check_verification(self, computer_serial):
-        """Проверить статус верификации"""
         try:
             response = requests.get(
                 f"{self.server_url}/api/check_session/{computer_serial}",
@@ -253,7 +232,6 @@ class WebAPIClient:
         return {'verified': False}
 
     def start_work_session(self, computer_serial):
-        """Начать рабочую сессию"""
         try:
             response = requests.post(
                 f"{self.server_url}/api/session/start",
@@ -267,7 +245,6 @@ class WebAPIClient:
         return {'success': False}
 
     def end_work_session(self, computer_serial):
-        """Завершить рабочую сессию"""
         try:
             response = requests.post(
                 f"{self.server_url}/api/session/end",
@@ -281,7 +258,6 @@ class WebAPIClient:
         return {'success': False}
 
     def upload_photo(self, computer_serial, photo_base64):
-        """Загрузить фото на сервер"""
         try:
             response = requests.post(
                 f"{self.server_url}/api/session/photo",
@@ -295,7 +271,6 @@ class WebAPIClient:
         return {'success': False}
 
 
-# ==================== МЕНЕДЖЕР СЕССИЙ ====================
 class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, Session] = {}
@@ -332,7 +307,7 @@ class SessionManager:
             )
 
             self.sessions[session_id] = session
-            logger.info(f"✅ Сессия: {computer_serial} - {code}")
+            logger.info(f"Сессия: {computer_serial} - {code}")
             return session
 
     def _generate_qr(self, url: str, computer_serial: str, code: str):
@@ -350,11 +325,10 @@ class SessionManager:
 
             return filepath
         except Exception as e:
-            logger.error(f"❌ Ошибка создания QR: {e}")
+            logger.error(f"Ошибка создания QR: {e}")
             return None
 
 
-# ==================== ДИСПЛЕЙ ====================
 class ComputerDisplay:
     def __init__(self, session: Session, computer_serial: str):
         self.session = session
@@ -420,10 +394,7 @@ class ComputerDisplay:
             return False
 
 
-# ==================== МОНИТОР СИСТЕМЫ ====================
 class SystemMonitor:
-    """Мониторинг состояния системы (сон/блокировка)"""
-
     def __init__(self, api_client: WebAPIClient, computer_serial: str):
         self.api_client = api_client
         self.computer_serial = computer_serial
@@ -431,13 +402,11 @@ class SystemMonitor:
         self.session_active = False
 
     def start_monitoring(self):
-        """Запустить мониторинг"""
         self.session_active = True
         self.api_client.start_work_session(self.computer_serial)
         logger.info("📊 Мониторинг сессии запущен")
 
     def stop_monitoring(self):
-        """Остановить мониторинг"""
         if self.session_active:
             result = self.api_client.end_work_session(self.computer_serial)
             if result.get('success'):
@@ -445,7 +414,6 @@ class SystemMonitor:
             self.session_active = False
 
     def run(self):
-        """Основной цикл мониторинга"""
         import ctypes
         from ctypes import wintypes
 
@@ -453,7 +421,7 @@ class SystemMonitor:
         kernel32 = ctypes.windll.kernel32
 
         while self.running:
-            time.sleep(5)  # Проверяем каждые 5 секунд
+            time.sleep(5)
 
             if not is_authorized():
                 if self.session_active:
@@ -461,20 +429,14 @@ class SystemMonitor:
                     self.stop_monitoring()
                 continue
 
-            # Проверяем, не заблокирован ли экран
-            # GetForegroundWindow и проверка на Secure Desktop
             hwnd = user32.GetForegroundWindow()
 
-            # Проверяем, не в спящем ли режиме система
-            # Для этого проверяем время последнего ответа
             try:
-                # Пингуем себя чтобы проверить что система не спит
                 last_check = time.time()
             except:
                 pass
 
 
-# ==================== ОСНОВНАЯ СЛУЖБА ====================
 class SessionService:
     def __init__(self):
         self.computer_serial = COMPUTER_SERIAL
@@ -486,71 +448,77 @@ class SessionService:
         logger.info(f"Служба запущена для: {self.computer_serial}")
 
     def run(self):
-        """Запуск службы"""
         try:
             with open(PID_FILE, 'w') as f:
                 f.write(str(os.getpid()))
 
-            # Запускаем мониторинг в отдельном потоке
             monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             monitor_thread.start()
 
-            if is_authorized():
-                logger.info(f"✅ Компьютер уже авторизован")
-                self._start_work_session()
-
-                while self.running:
-                    time.sleep(10)
-                    if not is_authorized():
-                        logger.info("🔄 Авторизация сброшена")
+            while self.running:
+                if is_authorized():
+                    if not self.work_session_started:
+                        logger.info(f"✅ Компьютер авторизован")
+                        self._start_work_session()
+                else:
+                    logger.info(f"🔒 Компьютер не авторизован")
+                    if self.work_session_started:
                         self._end_work_session()
-                        break
-            else:
-                logger.info(f"🔒 Компьютер не авторизован")
 
-                while self.running and not is_authorized():
-                    session = self.session_manager.create_session(self.computer_serial)
+                    while self.running and not is_authorized():
+                        session = self.session_manager.create_session(self.computer_serial)
 
-                    if session:
-                        display = ComputerDisplay(session, self.computer_serial)
-                        display_thread = threading.Thread(target=display.show, daemon=True)
-                        display_thread.start()
+                        if session:
+                            display = ComputerDisplay(session, self.computer_serial)
+                            display_thread = threading.Thread(target=display.show, daemon=True)
+                            display_thread.start()
 
-                        wait_time = 0
-                        while wait_time < CODE_LIFETIME and not is_authorized():
-                            verification_data = self.api_client.check_verification(self.computer_serial)
+                            wait_time = 0
+                            while wait_time < CODE_LIFETIME and not is_authorized() and self.running:
+                                verification_data = self.api_client.check_verification(self.computer_serial)
 
-                            if verification_data.get('verified'):
-                                mark_authorized()
-                                session.unlock_event.set()
-                                logger.info(f"✅ КОМПЬЮТЕР РАЗБЛОКИРОВАН!")
+                                if verification_data.get('verified'):
+                                    mark_authorized()
+                                    session.unlock_event.set()
+                                    logger.info(f"✅ КОМПЬЮТЕР РАЗБЛОКИРОВАН!")
 
-                                # Делаем фото
-                                photo = take_photo()
-                                if photo:
-                                    self.api_client.upload_photo(self.computer_serial, photo)
+                                    photo = take_photo()
+                                    if photo:
+                                        self.api_client.upload_photo(self.computer_serial, photo)
 
-                                # Начинаем рабочую сессию
-                                self._start_work_session()
+                                    self._start_work_session()
+                                    break
+
+                                time.sleep(2)
+                                wait_time += 2
+
+                            if not is_authorized():
+                                continue
+                            else:
                                 break
+                        else:
+                            time.sleep(10)
 
-                            time.sleep(2)
-                            wait_time += 2
-                    else:
-                        time.sleep(10)
+                time.sleep(5)
 
         except KeyboardInterrupt:
-            logger.info("👋 Завершение работы")
-            self._end_work_session()
+            logger.info("👋 Завершение работы по сигналу")
         except Exception as e:
             logger.error(f"❌ Ошибка в службе: {e}")
-            self._end_work_session()
         finally:
+            self.running = False
+            self._end_work_session()
             if os.path.exists(PID_FILE):
                 os.remove(PID_FILE)
+            try:
+                import shutil
+                if os.path.exists(TEMP_DIR):
+                    shutil.rmtree(TEMP_DIR)
+                    logger.info("🗑 Временные файлы очищены")
+            except Exception as e:
+                logger.error(f"Ошибка очистки временных файлов: {e}")
 
     def _start_work_session(self):
-        """Начать рабочую сессию"""
         if not self.work_session_started:
             result = self.api_client.start_work_session(self.computer_serial)
             if result.get('success'):
@@ -558,7 +526,6 @@ class SessionService:
                 logger.info("📊 Рабочая сессия начата")
 
     def _end_work_session(self):
-        """Завершить рабочую сессию"""
         if self.work_session_started:
             result = self.api_client.end_work_session(self.computer_serial)
             if result.get('success'):
@@ -566,11 +533,10 @@ class SessionService:
                 logger.info(f"📊 Рабочая сессия завершена, длительность: {result.get('duration', 0)} мин")
 
     def _monitor_loop(self):
-        """Цикл мониторинга состояния системы"""
         import ctypes
 
         while self.running:
-            time.sleep(30)  # Проверяем каждые 30 секунд
+            time.sleep(30)
 
             if not is_authorized():
                 if self.work_session_started:
@@ -578,18 +544,13 @@ class SessionService:
                     self._end_work_session()
                 continue
 
-            # Проверяем, не в спящем ли режиме система
             try:
-                # Проверяем активность системы
                 last_input = ctypes.windll.user32.GetLastInputInfo()
 
-                # Если система была в сне, авторизация могла сброситься
-                # Проверяем файл авторизации
                 if not os.path.exists(AUTHORIZED_FILE):
                     logger.info("💤 Файл авторизации исчез, возможно система была в сне")
                     self._end_work_session()
 
-                    # Очищаем Temp папку
                     try:
                         import shutil
                         shutil.rmtree(TEMP_DIR)
@@ -600,26 +561,40 @@ class SessionService:
                 pass
 
 
-# ==================== ТОЧКА ВХОДА ====================
 COMPUTER_SERIAL = get_computer_serial()
 
 
+def signal_handler(signum, frame):
+    logger.info(f"Получен сигнал {signum}, завершение работы...")
+    if 'service' in globals():
+        service.running = False
+
+
 def main():
-    print("=" * 70)
-    print(f"🚀 UNLOCK SYSTEM v{VERSION}")
-    print("=" * 70)
     print(f"💻 Серийный номер: {COMPUTER_SERIAL}")
     print(f"🌐 Сервер: {SERVER_URL}")
-    print("=" * 70)
 
     if os.path.exists(PID_FILE):
         print("⚠️ Программа уже запущена!")
         sys.exit(0)
 
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    try:
+        import win32api
+        win32api.SetConsoleCtrlHandler(lambda event: signal_handler(event, None), True)
+    except ImportError:
+        pass
+
+    global service
     service = SessionService()
     try:
         service.run()
     except KeyboardInterrupt:
+        pass
+    finally:
+        logger.info("Программа завершена")
         sys.exit(0)
 
 

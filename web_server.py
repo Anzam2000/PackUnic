@@ -24,12 +24,6 @@ Path(SESSIONS_DIR).mkdir(exist_ok=True)
 Path(PHOTOS_DIR).mkdir(exist_ok=True)
 
 
-def get_session_file_path(computer_serial: str) -> str:
-    """Построить безопасный путь к json-сессии по serial."""
-    safe_serial = str(computer_serial).replace("/", "_").replace("\\", "_")
-    return os.path.join(SESSIONS_DIR, f"{safe_serial}.json")
-
-
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -166,7 +160,7 @@ def verify_unlock():
     computer_serial = data.get('computer_serial')
     code = data.get('code')
 
-    session_file = get_session_file_path(computer_serial)
+    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
     if not os.path.exists(session_file):
         return jsonify({'success': False, 'message': 'Сессия не найдена'})
 
@@ -213,7 +207,7 @@ def verify_unlock():
 
 @app.route('/api/check_session/<computer_serial>')
 def check_session(computer_serial):
-    session_file = get_session_file_path(computer_serial)
+    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
     if not os.path.exists(session_file):
         return jsonify({'exists': False, 'verified': False})
 
@@ -247,14 +241,7 @@ def create_session():
         'verified': False
     }
 
-    session_file = get_session_file_path(computer_serial)
-
-    # Добавьте эти строки перед open():
-    directory = os.path.dirname(session_file)
-    if not os.path.exists(directory):
-        os.makedirs(directory)  # Это создаст всю цепочку папок (и active_sessions, и 40003)
-
-    # Теперь ошибка не появится
+    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
     with open(session_file, 'w') as f:
         json.dump(session_data, f)
 
@@ -268,15 +255,12 @@ def create_session():
     })
 
 
-# ==================== НОВЫЕ API ДЛЯ СЕССИЙ ====================
 @app.route('/api/session/start', methods=['POST'])
 def start_work_session():
-    """Начать сессию работы"""
     data = request.json
     computer_serial = data.get('computer_serial')
 
-    # Получаем информацию о сессии
-    session_file = get_session_file_path(computer_serial)
+    session_file = os.path.join(SESSIONS_DIR, f"{computer_serial}.json")
     if os.path.exists(session_file):
         with open(session_file, 'r') as f:
             session_data = json.load(f)
@@ -287,7 +271,6 @@ def start_work_session():
         surname = session_data.get('user_surname')
 
         if user_id:
-            # Создаем запись в БД
             query_db('''INSERT INTO work_sessions 
                         (user_id, username, name, surname, computer_serial, session_start) 
                         VALUES (?, ?, ?, ?, ?, ?)''',
@@ -301,11 +284,9 @@ def start_work_session():
 
 @app.route('/api/session/end', methods=['POST'])
 def end_work_session():
-    """Завершить сессию работы"""
     data = request.json
     computer_serial = data.get('computer_serial')
 
-    # Находим активную сессию
     active_session = query_db('''
         SELECT id, session_start 
         FROM work_sessions 
@@ -330,26 +311,20 @@ def end_work_session():
 
 @app.route('/api/session/photo', methods=['POST'])
 def upload_photo():
-    """Загрузить фото пользователя"""
     data = request.json
     computer_serial = data.get('computer_serial')
     photo_data = data.get('photo')  # base64
 
     if photo_data:
-        # Декодируем фото
         photo_bytes = base64.b64decode(photo_data.split(',')[1] if ',' in photo_data else photo_data)
 
-        # Создаем имя файла
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_serial = str(computer_serial).replace("/", "_").replace("\\", "_")
-        filename = f"{safe_serial}_{timestamp}.jpg"
+        filename = f"{computer_serial}_{timestamp}.jpg"
         filepath = os.path.join(PHOTOS_DIR, filename)
 
-        # Сохраняем фото
         with open(filepath, 'wb') as f:
             f.write(photo_bytes)
 
-        # Обновляем запись в БД
         query_db('''UPDATE work_sessions 
                     SET photo_path = ? 
                     WHERE computer_serial = ? AND session_end IS NULL 
@@ -361,7 +336,7 @@ def upload_photo():
     return jsonify({'success': False})
 
 
-# ==================== АДМИН-ПАНЕЛЬ ====================
+
 @app.route('/admin')
 @login_required
 @admin_required
@@ -387,7 +362,6 @@ def view_logs():
 @login_required
 @admin_required
 def view_sessions():
-    """Просмотр сессий работы"""
     sessions = query_db('''
         SELECT ws.*, 
                datetime(ws.session_start, 'localtime') as start_time,
@@ -458,7 +432,7 @@ def change_admin_password():
     return jsonify({'success': True, 'message': 'Пароль изменен'})
 
 
-# ==================== ОЧИСТКА СЕССИЙ ====================
+
 def cleanup_sessions():
     while True:
         try:
@@ -479,10 +453,5 @@ def cleanup_sessions():
 threading.Thread(target=cleanup_sessions, daemon=True).start()
 
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🔐 UNLOCK SYSTEM WEB SERVER (LOCAL)")
-    print("=" * 60)
     print("🌐 http://localhost:5000")
-    print("👤 Админ: admin / admin")
-    print("=" * 60)
     app.run(host='127.0.0.1', port=5000, debug=True)

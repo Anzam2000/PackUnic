@@ -1071,4 +1071,4 @@ async def get_work_sessions():
 if __name__ == "__main__":
     import uvicorn
     # Запуск на 0.0.0.0 для доступа с других ПК
-    uvicorn.run(app, host="192.168.56.1", port=8055)
+    uvicorn.run(app, host="192.168.3.189", port=8055)

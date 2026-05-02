@@ -9,7 +9,7 @@ from datetime import datetime
 class WarehouseAPI:
     """Клиент для работы с сервером склада через API"""
     
-    def __init__(self, server_ip="192.168.56.1", port=8055):
+    def __init__(self, server_ip="192.168.3.189", port=8055):
         """
         Инициализация клиента API.
 

@@ -311,7 +311,6 @@
             const code = document.getElementById('codeInput').value.trim();
             const resultDiv = document.getElementById('result');
 
-            // Показываем индикатор загрузки в стиле стекла
             resultDiv.innerHTML = `<div class="result-message" style="text-align:center;">✨ Проверка кода...</div>`;
 
             const response = await fetch('/api/verify', {
@@ -330,7 +329,6 @@
 
             if (data.success) {
                 document.getElementById('unlockForm').reset();
-                // Дополнительная анимация успеха
                 const container = document.querySelector('.glass-container');
                 container.style.transform = 'scale(1.01)';
                 setTimeout(() => container.style.transform = '', 200);

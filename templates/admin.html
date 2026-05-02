@@ -35,7 +35,6 @@
             margin: 0 auto;
         }
 
-        /* Общие стили стекла */
         .glass-panel {
             background: rgba(255, 255, 255, 0.35);
             backdrop-filter: blur(24px) saturate(180%);
@@ -90,7 +89,6 @@
             flex-wrap: wrap;
         }
 
-        /* Общий стиль для всех ссылок-кнопок */
         .glass-link {
             text-decoration: none;
             padding: 10px 20px;
@@ -106,7 +104,6 @@
             overflow: hidden;
         }
 
-        /* Эффект блика для всех ссылок */
         .glass-link::before {
             content: '';
             position: absolute;
@@ -129,7 +126,6 @@
             border-color: rgba(255, 255, 255, 0.7);
         }
 
-        /* Формы */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -181,7 +177,6 @@
             padding: 8px 0;
         }
 
-        /* Общий стиль для всех кнопок */
         .glass-button {
             padding: 14px 28px;
             background: rgba(255, 255, 255, 0.5);
@@ -198,7 +193,6 @@
             overflow: hidden;
         }
 
-        /* Эффект блика для всех кнопок */
         .glass-button::before {
             content: '';
             position: absolute;
@@ -226,7 +220,6 @@
             box-shadow: 0 8px 16px -6px rgba(0, 100, 200, 0.2);
         }
 
-        /* Маленькие кнопки */
         .glass-button.small {
             padding: 8px 16px;
             font-size: 0.9rem;
@@ -237,7 +230,6 @@
             background: rgba(255, 255, 255, 0.65);
         }
 
-        /* Кнопка удаления */
         .glass-button.danger {
             color: #c00030;
             background: rgba(255, 255, 255, 0.4);
@@ -248,7 +240,6 @@
             box-shadow: 0 12px 20px -8px rgba(200, 0, 0, 0.2);
         }
 
-        /* Таблица */
         .table-wrapper {
             overflow-x: auto;
             border-radius: 30px;
@@ -317,7 +308,6 @@
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
         }
 
-        /* Анимация для результатов */
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -344,7 +334,6 @@
         </div>
     </div>
 
-    <!-- Смена пароля -->
     <div class="glass-panel">
         <h3>🔐 Сменить пароль администратора</h3>
         <form id="changePasswordForm">
@@ -365,7 +354,6 @@
         </form>
     </div>
 
-    <!-- Добавление пользователя -->
     <div class="glass-panel">
         <h3>➕ Добавить пользователя</h3>
         <form id="addUserForm">
@@ -381,7 +369,6 @@
         </form>
     </div>
 
-    <!-- Список пользователей -->
     <div class="glass-panel">
         <h3>👥 Список пользователей</h3>
         <div class="table-wrapper">
@@ -407,7 +394,6 @@
             </table>
         </div>
 
-        <!-- Форма редактирования -->
         <div id="editForm" class="edit-panel" style="display:none;">
             <h4>✏️ Редактировать пользователя</h4>
             <form id="editUserForm">
